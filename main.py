@@ -1,0 +1,181 @@
+from fastapi import FastAPI
+from sqlmodel import SQLModel, create_engine, Session, select, Field, or_, not_
+import oracledb
+import traceback
+
+# FastAPI 应用实例化
+app = FastAPI(
+    title="车辆信息查询服务",
+    description="提供基于车牌号和身份证号的车辆信息查询服务",
+    version="1.0.0"
+)
+
+# 数据模型定义
+class Vehicle(SQLModel, table=True):
+    """
+    车辆信息数据模型
+    
+    属性:
+        xh (int): 序号，主键
+        hphm (str): 号牌号码
+        hpzl (str): 号牌种类
+        clsbdh (str): 车辆识别代号
+        sfzmhm (str): 身份证明号码
+        dybj (str): 抵押标记
+        zt (str): 状态
+    """
+    xh: int = Field(primary_key=True)
+    hphm: str
+    hpzl: str
+    clsbdh: str
+    sfzmhm: str
+    dybj: int
+    zt: str
+
+# 数据库连接配置
+DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.113:1521/?service_name=orcl"
+engine = create_engine(DATABASE_URL, echo=True)
+
+@app.get("/status")
+async def status():
+    """
+    服务状态检查接口
+    
+    返回:
+        dict: 包含服务器状态信息的字典
+    """
+    return {"message": "服务器已启动"}
+
+@app.get("/test")
+async def test(hphm: str):
+    """
+    根据车牌号查询车辆信息的测试接口
+    
+    参数:
+        hphm (str): 车牌号码
+        
+    返回:
+        dict: 包含查询状态和结果的字典
+    """
+    try:
+        with Session(engine) as session:
+            # 执行查询
+            statement = select(Vehicle).where(Vehicle.hphm == hphm)
+            results = session.exec(statement)
+            data = results.all()
+            
+            # 处理空结果
+            if not data:
+                return {"status": "success", "data": "null"}
+                
+            return {"status": "success", "data": data}
+    
+    except Exception as e:
+        return {"status": "error", "data": str(e)}
+
+@app.get("/bysfzmhm")
+async def get_by_sfzmhm(sfzmhm: str):
+    """
+    根据身份证号查询车辆信息接口
+    
+    参数:
+        sfzmhm (str): 身份证明号码
+        
+    返回:
+        dict: 包含查询状态和结果的字典，结果中排除状态包含'B'和'E'的记录
+    """
+    try:
+        with Session(engine) as session:
+            # 构建查询条件：匹配身份证号且状态不包含'B'和'E'
+            statement = select(Vehicle).where(
+                Vehicle.sfzmhm == sfzmhm,
+                not_(
+                    or_(
+                        Vehicle.zt.like('%B%'),
+                        Vehicle.zt.like('%E%')
+                    )
+                )
+            )
+            results = session.exec(statement)
+            data = results.all()
+            
+            # 处理空结果
+            if not data:
+                return {"status": "success", "data": "null"}
+            
+            # 格式化返回数据
+            formatted_data = [
+                {
+                    "hpzl": item.hpzl,
+                    "hphm": item.hphm,
+                    "clsbdh": item.clsbdh,
+                    "dybj": item.dybj,
+                    "zt": item.zt
+                }
+                for item in data
+            ]
+            
+            return {"status": "success", "data": formatted_data}
+    
+    except Exception as e:
+        # 返回详细的错误信息
+        return {"status": "error", "data": traceback.format_exc()}
+
+@app.get("/validate_code")
+async def validate_code(code: str):
+    """
+    验证身份证号的合法性
+    
+    参数:
+        code (str): 待验证的身份证号码
+        
+    返回:
+        dict: 包含验证结果的字典
+        data: 1 - 身份证号正确
+              2 - 身份证号错误
+    """
+    try:
+        # 去除空格
+        code = code.strip()
+        
+        # 基本格式验证
+        if len(code) != 18:
+            return {"status": "success", "data": 3}
+        
+        # 验证是否都是数字且最后一位可以是X
+        if not (code[:-1].isdigit() and (code[-1].isdigit() or code[-1].upper() == 'X')):
+            return {"status": "success", "data": 3}
+        
+        # 加权因子
+        weight = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+        # 校验码映射
+        check_code_map = '10X98765432'
+        
+        # 计算加权和
+        sum = 0
+        for i in range(17):
+            sum += int(code[i]) * weight[i]
+        
+        # 计算校验码
+        check = check_code_map[sum % 11]
+        
+        # 验证校验码
+        if check == code[-1].upper():
+            return {"status": "success", "data": 1}  # 身份证号正确
+        else:
+            return {"status": "success", "data": 2}  # 身份证号错误
+        
+    except Exception as e:
+        return {"status": "Error", "data": traceback.format_exc()}  
+
+
+
+# 直接运行服务器的入口点
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000,
+        reload=True  # 开发模式下启用热重载
+    )
