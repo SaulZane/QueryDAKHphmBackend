@@ -2,14 +2,24 @@ from fastapi import FastAPI
 from sqlmodel import SQLModel, create_engine, Session, select, Field, or_, not_
 import oracledb
 import traceback
+from tool import rand
+from fastapi.middleware.cors import CORSMiddleware
 
 # FastAPI 应用实例化
 app = FastAPI(
     title="车辆信息查询服务",
-    description="提供基于车牌号和身份证号的车辆信息查询服务",
+    description="提供基于身份证号的车辆信息查询后端服务",
     version="1.0.0"
 )
 
+# 添加CORS中间件，允许所有来源、所有方法和所有头
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有源
+    allow_credentials=True,  # 允许凭证，如cookies
+    allow_methods=["*"],  # 允许所有HTTP方法
+    allow_headers=["*"],  # 允许所有请求头
+)
 # 数据模型定义
 class Vehicle(SQLModel, table=True):
     """
@@ -73,7 +83,7 @@ async def test(hphm: str):
     except Exception as e:
         return {"status": "error", "data": str(e)}
 
-@app.get("/bysfzmhm")
+#@app.get("/bysfzmhm")
 async def get_by_sfzmhm(sfzmhm: str):
     """
     根据身份证号查询车辆信息接口
@@ -121,7 +131,7 @@ async def get_by_sfzmhm(sfzmhm: str):
         # 返回详细的错误信息
         return {"status": "error", "data": traceback.format_exc()}
 
-@app.get("/validate_code")
+#@app.get("/validate_code")
 async def validate_code(code: str):
     """
     验证身份证号的合法性
@@ -168,6 +178,53 @@ async def validate_code(code: str):
     except Exception as e:
         return {"status": "Error", "data": traceback.format_exc()}  
 
+@app.get("/rd")
+async def get_random():
+    """
+    生成4位随机数
+    
+    返回:
+        dict: 包含生成的4位随机数的字典
+    """
+    try:
+        random_num = rand()
+        return {"status": "success", "data": random_num}
+    except Exception as e:
+        return {"status": "error", "data": traceback.format_exc()}
+
+
+
+@app.post("/check")
+async def check(sfzmhm: str, input_code: str):
+    """
+    验证码校验并查询车辆信息接口
+    
+    参数:
+        sfzmhm (str): 身份证明号码
+        input_code (str): 用户输入的验证码
+        
+    返回:
+        dict: 包含验证和查询结果的字典
+    """
+    try:
+        # 获取当前正确的验证码
+        random_result = await get_random()
+        if random_result["status"] != "success":
+            return {"status": "error", "data": "获取验证码失败"}
+            
+        correct_code = random_result["data"]
+        
+        # 验证码校验
+        if input_code != correct_code:
+            return {"status": "success", "data": "验证码错误"}
+                        
+        # 查询车辆信息
+        query_result = await get_by_sfzmhm(sfzmhm)
+        return query_result
+        
+    except Exception as e:
+        return {"status": "error", "data": traceback.format_exc()}
+
 
 
 # 直接运行服务器的入口点
@@ -176,6 +233,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app, 
         host="0.0.0.0", 
-        port=8000,
+        port=8002,
         reload=True  # 开发模式下启用热重载
     )
