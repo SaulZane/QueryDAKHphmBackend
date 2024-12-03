@@ -4,6 +4,7 @@ import oracledb
 import traceback
 from tool import rand
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Body
 
 # FastAPI 应用实例化
 app = FastAPI(
@@ -36,6 +37,7 @@ class Vehicle(SQLModel, table=True):
     """
     xh: int = Field(primary_key=True)
     hphm: str
+    syr:str
     hpzl: str
     clsbdh: str
     sfzmhm: str
@@ -119,6 +121,7 @@ async def get_by_sfzmhm(sfzmhm: str):
                     "hpzl": item.hpzl,
                     "hphm": item.hphm,
                     "clsbdh": item.clsbdh,
+                    "syr": item.syr,
                     "dybj": item.dybj,
                     "zt": item.zt
                 }
@@ -195,17 +198,15 @@ async def get_random():
 
 
 @app.post("/check")
-async def check(sfzmhm: str, input_code: str):
+async def check(
+    data: dict = Body(...),  # 从请求体获取数据
+):
     """
     验证码校验并查询车辆信息接口
-    
-    参数:
-        sfzmhm (str): 身份证明号码
-        input_code (str): 用户输入的验证码
-        
-    返回:
-        dict: 包含验证和查询结果的字典
     """
+    sfzmhm = data.get("sfzmhm")
+    input_code = data.get("input_code")
+    
     try:
         # 获取当前正确的验证码
         random_result = await get_random()
