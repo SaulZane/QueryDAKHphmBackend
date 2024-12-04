@@ -134,8 +134,8 @@ async def get_by_sfzmhm(sfzmhm: str):
         # 返回详细的错误信息
         return {"status": "error", "data": traceback.format_exc()}
 
-#@app.get("/validate_code")
-async def validate_code(code: str):
+@app.post("/validate_code")
+async def validate_code(data: dict = Body(...),):
     """
     验证身份证号的合法性
     
@@ -149,7 +149,7 @@ async def validate_code(code: str):
     """
     try:
         # 去除空格
-        code = code.strip()
+        code = data.get("sfzmhm")
         
         # 基本格式验证
         if len(code) != 18:
