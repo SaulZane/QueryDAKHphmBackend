@@ -45,7 +45,7 @@ class Vehicle(SQLModel, table=True):
     zt: str
 
 # 数据库连接配置
-DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.113:1521/?service_name=orcl"
+DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.109:1521/?service_name=orcl"
 engine = create_engine(DATABASE_URL, echo=True)
 
 @app.get("/status")
@@ -221,6 +221,78 @@ async def check(
                         
         # 查询车辆信息
         query_result = await get_by_sfzmhm(sfzmhm)
+        return query_result
+        
+    except Exception as e:
+        return {"status": "error", "data": traceback.format_exc()}
+
+# 新增根据车辆识别代号查询车辆信息接口
+#@app.get("/byclsbdh")
+async def get_by_clsbdh(clsbdh: str):
+    """
+    根据车辆识别代号查询车辆信息接口
+    
+    参数:
+        clsbdh (str): 车辆识别代号
+        
+    返回:
+        dict: 包含查询状态和结果的字典
+    """
+    try:
+        with Session(engine) as session:
+            # 执行查询
+            statement = select(Vehicle).where(Vehicle.clsbdh == clsbdh)
+            results = session.exec(statement)
+            data = results.all()
+            
+            # 处理空结果
+            if not data:
+                return {"status": "success", "data": "null"}
+            
+            # 格式化返回数据
+            formatted_data = [
+                {
+                    "hpzl": item.hpzl,
+                    "hphm": item.hphm,
+                    "clsbdh": item.clsbdh,
+                    "syr": item.syr,
+                    "dybj": item.dybj,
+                    "zt": item.zt
+                }
+                for item in data
+            ]
+            
+            return {"status": "success", "data": formatted_data}
+    
+    except Exception as e:
+        # 返回详细的错误信息
+        return {"status": "error", "data": traceback.format_exc()}
+
+# 新增验证码校验并查询车辆识别代号接口
+@app.post("/checkclsbdh")
+async def check_clsbdh(
+    data: dict = Body(...),  # 从请求体获取数据
+):
+    """
+    验证码校验并查询车辆识别代号接口
+    """
+    clsbdh = data.get("clsbdh")
+    input_code = data.get("input_code")
+    
+    try:
+        # 获取当前正确的验证码
+        random_result = await get_random()
+        if random_result["status"] != "success":
+            return {"status": "error", "data": "获取验证码失败"}
+            
+        correct_code = random_result["data"]
+        
+        # 验证码校验
+        if input_code != correct_code:
+            return {"status": "success", "data": "验证码错误"}
+                        
+        # 查询车辆信息
+        query_result = await get_by_clsbdh(clsbdh)
         return query_result
         
     except Exception as e:
