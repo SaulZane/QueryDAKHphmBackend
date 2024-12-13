@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Body, Request
 from sqlmodel import SQLModel, create_engine, Session, select, Field, or_, not_
+from sqlalchemy import func
 import oracledb
 import traceback
 from tool import rand, query_logger
@@ -44,8 +45,13 @@ class Vehicle(SQLModel, table=True):
     zt: str
 
 # 数据库连接配置
+oracledb.init_oracle_client()  # 初始化Oracle客户端
+
 DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.115:1521/?service_name=orcl"
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(
+    DATABASE_URL,
+    echo=True,
+)
 
 @app.get("/status")
 async def status():
@@ -100,12 +106,8 @@ async def get_by_sfzmhm(sfzmhm: str):
             # 构建查询条件：匹配身份证号且状态不包含'B'和'E'
             statement = select(Vehicle).where(
                 Vehicle.sfzmhm == sfzmhm,
-                not_(
-                    or_(
-                        Vehicle.zt.like('%B%'),
-                        Vehicle.zt.like('%E%')
-                    )
-                )
+                func.instr(Vehicle.zt, 'B') == 0,
+                func.instr(Vehicle.zt, 'E') == 0
             )
             results = session.exec(statement)
             data = results.all()
@@ -338,6 +340,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app, 
         host="0.0.0.0", 
-        port=8002,
+        port=8004,
         reload=True  # 开发模式下启用热重载
     )
