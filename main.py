@@ -1,10 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body, Request
 from sqlmodel import SQLModel, create_engine, Session, select, Field, or_, not_
 import oracledb
 import traceback
-from tool import rand
+from tool import rand, query_logger
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Body
 
 # FastAPI 应用实例化
 app = FastAPI(
@@ -45,7 +44,7 @@ class Vehicle(SQLModel, table=True):
     zt: str
 
 # 数据库连接配置
-DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.109:1521/?service_name=orcl"
+DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.115:1521/?service_name=orcl"
 engine = create_engine(DATABASE_URL, echo=True)
 
 @app.get("/status")
@@ -199,7 +198,8 @@ async def get_random():
 
 @app.post("/check")
 async def check(
-    data: dict = Body(...),  # 从请求体获取数据
+    request: Request,
+    data: dict = Body(...)
 ):
     """
     验证码校验并查询车辆信息接口
@@ -208,6 +208,7 @@ async def check(
     input_code = data.get("input_code")
     
     try:
+
         # 获取当前正确的验证码
         random_result = await get_random()
         if random_result["status"] != "success":
@@ -221,10 +222,27 @@ async def check(
                         
         # 查询车辆信息
         query_result = await get_by_sfzmhm(sfzmhm)
+        query_logger.log_query(
+            ip_address=request.client.host,
+            query_param=sfzmhm,
+            is_success=query_result["status"] == "success",
+            response_data=query_result,
+            vehicle_count=len(query_result["data"]) if query_result["data"] != "null" else 0,
+            param_type='sfzmhm'
+        )
+        
         return query_result
         
     except Exception as e:
-        return {"status": "error", "data": traceback.format_exc()}
+        error_result = {"status": "error", "data": traceback.format_exc()}
+        query_logger.log_query(
+            ip_address=request.client.host,
+            query_param=sfzmhm,
+            is_success=False,
+            response_data=error_result,
+            param_type='sfzmhm'
+        )
+        return error_result
 
 # 新增根据车辆识别代号查询车辆信息接口
 #@app.get("/byclsbdh")
@@ -271,7 +289,8 @@ async def get_by_clsbdh(clsbdh: str):
 # 新增验证码校验并查询车辆识别代号接口
 @app.post("/checkclsbdh")
 async def check_clsbdh(
-    data: dict = Body(...),  # 从请求体获取数据
+    data: dict = Body(...),
+    request: Request = None  # Added default value for request parameter
 ):
     """
     验证码校验并查询车辆识别代号接口
@@ -293,6 +312,19 @@ async def check_clsbdh(
                         
         # 查询车辆信息
         query_result = await get_by_clsbdh(clsbdh)
+        # 记录查询日志
+        ip_address = request.client.host  # 获取请求的IP地址
+        is_success = query_result["status"] == "success"
+        print(len(query_result["data"]) if query_result["data"] != "null" else 0)
+        
+        query_logger.log_query(
+            ip_address=ip_address,
+            query_param=clsbdh,
+            is_success=is_success,
+            response_data=query_result,
+            param_type='clsbdh',
+            vehicle_count=len(query_result["data"]) if query_result["data"] != "null" else 0,
+        )
         return query_result
         
     except Exception as e:
