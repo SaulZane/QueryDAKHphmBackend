@@ -33,3 +33,16 @@ Thumbs.db
 .env.local 
 
 *.db
+# Start Generation Here
+packages/
+# Add any additional package directories here
+# End Generation Here
+
+
+ *.exe
+ *.dll
+vc14/
+*.exe
+*.dll
+*.sym
+*.jar
