@@ -5,6 +5,7 @@ import oracledb
 import traceback
 from tool import rand, query_logger
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.sql import text
 
 # FastAPI 应用实例化
 app = FastAPI(
@@ -44,10 +45,10 @@ class Vehicle(SQLModel, table=True):
     dybj: int
     zt: str
 
-# 数据库连接配置
+
 oracledb.init_oracle_client()  # 初始化Oracle客户端
 
-DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.115:1521/?service_name=orcl"
+DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.105:1521/?service_name=orcl"
 engine = create_engine(
     DATABASE_URL,
     echo=True,
@@ -99,15 +100,12 @@ async def get_by_sfzmhm(sfzmhm: str):
         sfzmhm (str): 身份证明号码
         
     返回:
-        dict: 包含查询状态和结果的字典，结果中排除状态包含'B'和'E'的记录
+        dict: 包含查询状态和结果的字典
     """
     try:
         with Session(engine) as session:
-            # 构建查询条件：匹配身份证号且状态不包含'B'和'E'
             statement = select(Vehicle).where(
-                Vehicle.sfzmhm == sfzmhm,
-                func.instr(Vehicle.zt, 'B') == 0,
-                func.instr(Vehicle.zt, 'E') == 0
+                Vehicle.sfzmhm == sfzmhm              
             )
             results = session.exec(statement)
             data = results.all()
@@ -332,7 +330,125 @@ async def check_clsbdh(
     except Exception as e:
         return {"status": "error", "data": traceback.format_exc()}
 
+@app.get("/history")
+async def get_history_by_sfzmhm(sfzmhm: str):
+    """
+    根据身份证号查询历史车辆信息接口
+    """
+    try:
+        with engine.connect() as connection:
+            # Oracle原生SQL查询
+            sql = text("""
+                select b.xh,
+                       b.hpzl,
+                       c.clpp1,
+                       b.yhphm zrqhp,
+                       b.ysyr zrqsyr,
+                       b.hphm zrhhp,
+                       c.syr zrhsyr,
+                       d.hphm xhphm,
+                       d.syr xsyr,
+                       d.zt xzt,
+                       e.zrbj,
+                       e.zcd,
+                       e.zrd
+                from trff_app.veh_ownermodify b,
+                     trff_app.veh_flow c,
+                     trff_app.vehicle d,
+                     trff_app.veh_out_in_gab e
+                where b.lsh = c.lsh
+                and b.xh = c.xh
+                and b.xh = d.xh(+)
+                and b.xh = e.xh(+)
+                and b.sfzmhm = :sfzmhm
+            """)
+            
+            # 执行查询
+            result = connection.execute(sql, {"sfzmhm": sfzmhm})
+            data = result.fetchall()
+            
+            # 处理空结果
+            if not data:
+                return {"status": "success", "data": "null"}
+            
+            # 格式化返回数据
+            formatted_data = [
+                {
+                    "xh": str(row[0]) if row[0] else None,
+                    "hpzl": str(row[1]) if row[1] else None,
+                    "clpp1": str(row[2]) if row[2] else None,
+                    "zrqhp": str(row[3]) if row[3] else None,
+                    "zrqsyr": str(row[4]) if row[4] else None,
+                    "zrhhp": str(row[5]) if row[5] else None,
+                    "zrhsyr": str(row[6]) if row[6] else None,
+                    "xhphm": str(row[7]) if row[7] else None,
+                    "xsyr": str(row[8]) if row[8] else None,
+                    "xzt": str(row[9]) if row[9] else None,
+                    "zrbj": str(row[10]) if row[10] else None,
+                    "zcd": str(row[11]) if row[11] else None,
+                    "zrd": str(row[12]) if row[12] else None
+                }
+                for row in data
+            ]
+            
+            return {"status": "success", "data": formatted_data}
 
+    except Exception as e:
+        # 返回详细的错误信息
+        return {"status": "error", "data": traceback.format_exc()}
+
+@app.post("/check_history")
+async def check_history(
+    request: Request,
+    data: dict = Body(...)
+):
+    """
+    验证码校验并查询历史车辆信息接口
+    """
+    sfzmhm = data.get("sfzmhm")
+    input_code = data.get("input_code")
+    
+    try:
+        # 获取当前正确的验证码
+        random_result = await get_random()
+        if random_result["status"] != "success":
+            return {"status": "error", "data": "获取验证码失败"}
+            
+        correct_code = random_result["data"]
+        
+        # 验证码校验
+        if input_code != correct_code:
+            return {"status": "success", "data": "验证码错误"}
+         
+        # 查询历史车辆信息
+        query_result = await get_history_by_sfzmhm(sfzmhm)
+        # 记录查询日志
+        try:
+            vehicle_count = len(query_result["data"]) if query_result["data"] != "null" else 0
+        except:
+            vehicle_count = 0
+            
+        query_logger.log_query(
+            ip_address=request.client.host,
+            query_param=sfzmhm,
+            is_success=query_result["status"] == "success",
+            response_data=query_result,
+            vehicle_count=vehicle_count,
+            param_type='sfzmhm_history'
+        )
+        
+        return query_result
+        
+    except Exception as e:
+        error_result = {"status": "error", "data": traceback.format_exc()}
+        query_logger.log_query(
+            ip_address=request.client.host,
+            query_param=sfzmhm,
+            is_success=False,
+            response_data=error_result,
+            param_type='sfzmhm_history'
+        )
+        return error_result
 
 # 直接运行服务器的入口点
 if __name__ == "__main__":
