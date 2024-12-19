@@ -386,11 +386,43 @@ async def get_history_by_sfzmhm(sfzmhm: str):
                     "xzt": str(row[9]) if row[9] else None,
                     "zrbj": str(row[10]) if row[10] else None,
                     "zcd": str(row[11]) if row[11] else None,
-                    "zrd": str(row[12]) if row[12] else None
+                    "zrd": str(row[12]) if row[12] else None,
+                    "case_id": None,
                 }
                 for row in data
             ]
             
+            
+            for item in formatted_data:
+                xhphm = item["xhphm"]
+                xsyr = item["xsyr"]
+                xzt = item["xzt"]
+                zrd = item["zrd"]
+                
+                # 以下为修改显示内容
+                # 1. 如果xzt中含有状态"B"或者"E"且不为空,并且zrd不为空，则将xhphm和xsyr的值同时置为"--";
+                if xzt is not None and ( 'B' in xzt or 'E' in xzt) and zrd is not None:
+                    item["xhphm"] = "--"
+                    item["xsyr"] = "--"
+                    item["case_id"] = '''1. 如果xzt中含有状态"B"或者"E"且不为空,并且zrd不为空，则将xhphm和xsyr的值同时置为"--"'''
+                # 2. 如果xhphm和xsyr和xzt的值为None，并且zrd不是None，则将xzt的值置为"B"
+                elif xhphm is None and xsyr is None and xzt is None and zrd is not None:
+                    item["xzt"] = "B"
+                    item["case_id"] = '''2. 如果xhphm和xsyr和xzt的值为None，并且zrd不是None，则将xzt的值置为"B"'''
+                # 3. 如果xzt的值为"B"，并且zrd为None，则将zrd的值置为"电子转籍或无信息"
+                elif xzt=='B' and zrd is None:
+                    item["zrd"] = "电子转籍或无落户信息"
+                    item["case_id"] = '''3. 如果xzt的值为"B"，并且zrd为None，则将zrd的值置为"电子转籍或无落户信息"'''
+                # 4. 如果xhphm和xsyr和xzt和zrd同时为None，则将xhphm位置为"信息待查！"
+                elif xhphm is None and xsyr is None and xzt is None and zrd is None:
+                    item["xhphm"] = "信息待查！"
+                    item["case_id"] = '''4. 如果xhphm和xsyr和xzt和zrd同时为None，则将xhphm位置为"信息待查！"'''
+                #5. 如果xzt中含有状态"E"且不为空,并且zrd为空，则将xhphm和xsyr的值同时置为"--"; （这里包含BE出口注销的情形）
+                elif xzt is not None and 'E' in xzt and zrd is None:
+                    item["xhphm"] = "--"
+                    item["xsyr"] = "--"
+                    item["case_id"] = '''5. 如果xzt中含有状态"E"且不为空,并且zrd为空，则将xhphm和xsyr的值同时置为"--"; '''
+                    
             return {"status": "success", "data": formatted_data}
 
     except Exception as e:
@@ -449,6 +481,8 @@ async def check_history(
             param_type='sfzmhm_history'
         )
         return error_result
+
+
 
 # 直接运行服务器的入口点
 if __name__ == "__main__":
