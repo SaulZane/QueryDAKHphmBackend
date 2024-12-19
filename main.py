@@ -415,7 +415,7 @@ async def get_history_by_sfzmhm(sfzmhm: str):
                     item["case_id"] = '''3. 如果xzt的值为"B"，并且zrd为None，则将zrd的值置为"电子转籍或无落户信息"'''
                 # 4. 如果xhphm和xsyr和xzt和zrd同时为None，则将xhphm位置为"信息待查！"
                 elif xhphm is None and xsyr is None and xzt is None and zrd is None:
-                    item["xhphm"] = "信息待查！"
+                    item["xhphm"] = "信息待查！使用流水查询进一步核实。"
                     item["case_id"] = '''4. 如果xhphm和xsyr和xzt和zrd同时为None，则将xhphm位置为"信息待查！"'''
                 #5. 如果xzt中含有状态"E"且不为空,并且zrd为空，则将xhphm和xsyr的值同时置为"--"; （这里包含BE出口注销的情形）
                 elif xzt is not None and 'E' in xzt and zrd is None:
