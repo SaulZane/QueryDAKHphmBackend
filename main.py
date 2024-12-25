@@ -44,11 +44,12 @@ class Vehicle(SQLModel, table=True):
     sfzmhm: str
     dybj: int
     zt: str
+    cllx: str
 
 
 oracledb.init_oracle_client()  # 初始化Oracle客户端
 
-DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.105:1521/?service_name=orcl"
+DATABASE_URL = "oracle+oracledb://trff_app:trff_app@192.168.1.106:1521/?service_name=orcl"
 engine = create_engine(
     DATABASE_URL,
     echo=True,
@@ -122,7 +123,8 @@ async def get_by_sfzmhm(sfzmhm: str):
                     "clsbdh": item.clsbdh,
                     "syr": item.syr,
                     "dybj": item.dybj,
-                    "zt": item.zt
+                    "zt": item.zt,
+                    "cllx": item.cllx
                 }
                 for item in data
             ]
@@ -275,7 +277,8 @@ async def get_by_clsbdh(clsbdh: str):
                     "clsbdh": item.clsbdh,
                     "syr": item.syr,
                     "dybj": item.dybj,
-                    "zt": item.zt
+                    "zt": item.zt,
+                    "cllx": item.cllx
                 }
                 for item in data
             ]
@@ -342,6 +345,7 @@ async def get_history_by_sfzmhm(sfzmhm: str):
                 select b.xh,
                        b.hpzl,
                        c.clpp1,
+                       d.cllx,
                        b.yhphm zrqhp,
                        b.ysyr zrqsyr,
                        b.hphm zrhhp,
@@ -377,16 +381,17 @@ async def get_history_by_sfzmhm(sfzmhm: str):
                     "xh": str(row[0]) if row[0] else None,
                     "hpzl": str(row[1]) if row[1] else None,
                     "clpp1": str(row[2]) if row[2] else None,
-                    "zrqhp": str(row[3]) if row[3] else None,
-                    "zrqsyr": str(row[4]) if row[4] else None,
-                    "zrhhp": str(row[5]) if row[5] else None,
-                    "zrhsyr": str(row[6]) if row[6] else None,
-                    "xhphm": str(row[7]) if row[7] else None,
-                    "xsyr": str(row[8]) if row[8] else None,
-                    "xzt": str(row[9]) if row[9] else None,
-                    "zrbj": str(row[10]) if row[10] else None,
-                    "zcd": str(row[11]) if row[11] else None,
-                    "zrd": str(row[12]) if row[12] else None,
+                    "cllx": str(row[3]) if row[3] else None,
+                    "zrqhp": str(row[4]) if row[4] else None,
+                    "zrqsyr": str(row[5]) if row[5] else None,
+                    "zrhhp": str(row[6]) if row[6] else None,
+                    "zrhsyr": str(row[7]) if row[7] else None,
+                    "xhphm": str(row[8]) if row[8] else None,
+                    "xsyr": str(row[9]) if row[9] else None,
+                    "xzt": str(row[10]) if row[10] else None,
+                    "zrbj": str(row[11]) if row[11] else None,
+                    "zcd": str(row[12]) if row[12] else None,
+                    "zrd": str(row[13]) if row[13] else None,
                     "case_id": None,
                 }
                 for row in data
